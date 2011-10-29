@@ -604,6 +604,59 @@ class AMCRenderer:
         self.controller.set_spindle(False)
 
 
+@is_visitor
+class AMCGenerator:
+    """A text generator to take gcode commands (via gcode module) and output
+       the commands that the AMC controller recognises.
+    """
+    def __init__(self):
+        """ Create a new command generator """
+        self.units = STEPS_PER_MM
+
+    @when(BaseCommand, allow_cascaded_calls=True)
+    def render(self, cmd):
+        return ""
+
+    @when(LinearCommand)
+    def render(self, cmd):
+        output = ""
+        if cmd.to_z is not None:
+            output += ("HU.\n" if cmd.to_z > 0 else "HD.\n")
+
+        if cmd.f is not None:
+            output += "VM%d.\n" % (cmd.f * self.units)
+
+        if cmd.to_x is not None and cmd.to_y is not None:
+            output += "DA%d,%d,0.\n" % (cmd.to_x * self.units,cmd.to_y * self.units)
+        
+        return output
+
+    @when(ArcCommand)
+    def render(self, cmd):
+        output = ""
+        if cmd.to_z is not None:
+            output += ("HU.\n" if cmd.to_z > 0 else "HD.\n")
+
+        if cmd.f is not None:
+            output += "VM%d.\n" % (cmd.f * self.units)
+
+        if cmd.to_x is not None and cmd.to_y is not None and cmd.cn_x is not None and cmd.cn_y is not None and cmd.cw is not None:
+            output += "CR%d,%d,0,%d,%d,0,%d.\n" % (cmd.cn_x * self.units,cmd.cn_y * self.units,cmd.to_x * self.units,cmd.to_y * self.units, central_angle_steps(cmd.cn_x,cmd.cn_y,cmd.to_x,cmd.to_y,cmd.cw))
+        
+        return output
+
+    @when(DwellCommand)
+    def render(self, cmd):
+        return ""
+
+    @when(M3)
+    def render(self, cmd):
+        return "SS%d." % (99)
+
+    @when(M5)
+    def render(self, cmd):
+        return "SS%d." % (0)
+
 
 _RE_AXES=r"(?P<x>[-\d]+),(?P<y>[-\d]+),(?P<z>[-\d]+)"
 _RE_CIRC=r"(?P<i>[-\d]+),(?P<j>[-\d]+),(?P<k>[-\d]+)"
